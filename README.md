@@ -1,1 +1,0 @@
-# plantigo-firmware
