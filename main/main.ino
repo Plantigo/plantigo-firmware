@@ -2,23 +2,24 @@
 #include <ESPAsyncWebServer.h>
 #include <PubSubClient.h>
 #include "WiFiManager.h"
+#include "MQTTManager.h"
+#include "SensorManager.h"
 #include "esp_task_wdt.h"
 
-// Ustawienia WiFi, MQTT i serwera
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
+MQTTManager mqttManager(mqttClient);
+SensorManager sensorManager(mqttClient);
 AsyncWebServer server(80);
 WiFiManager wifiManager;
 String selectedSSID = "";
-bool mqttConnected = false;
 
-// Placeholdery do MQTT
+bool mqttConnected = false;
 String mqttHost = "";
 int mqttPort = 1883;
 String mqttUser = "";
 String mqttPassword = "";
 
-// Zawartość HTML przechowywana bezpośrednio w pamięci
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html>
@@ -172,9 +173,10 @@ void setup()
         Serial.println("Połączono z zapisanym WiFi.");
         Serial.print("Adres IP: ");
         Serial.println(WiFi.localIP());
+        Serial.print("MAC: ");
+        Serial.println(WiFi.macAddress());
     }
 
-    // Obsługa serwowania strony głównej
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
               {
         IPAddress clientIP = request->client()->remoteIP();
@@ -194,11 +196,10 @@ void setup()
         json += "]}";
         request->send(200, "application/json", json); });
 
-    // Endpoint do sprawdzania statusu połączenia WiFi i MQTT
     server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request)
               {
         bool wifiConnected = (WiFi.status() == WL_CONNECTED);
-        bool mqttStatus = mqttConnected;
+        bool mqttStatus = mqttManager.isConnected();
         String ssid = wifiConnected ? WiFi.SSID() : "";
         String ip = wifiConnected ? WiFi.localIP().toString() : "";
         int rssi = wifiConnected ? WiFi.RSSI() : 0;
@@ -208,8 +209,8 @@ void setup()
                       ",\"ssid\":\"" + ssid +
                       "\",\"ip\":\"" + ip +
                       "\",\"rssi\":" + String(rssi) +
-                      ",\"mqttHost\":\"" + mqttHost +
-                      "\",\"mqttPort\":" + String(mqttPort) + "}";
+                      ",\"mqttHost\":\"" + mqttManager.getHost() +
+                      "\",\"mqttPort\":" + String(mqttManager.getPort()) + "}";
         request->send(200, "application/json", json); });
 
     server.on("/connect", HTTP_POST, [](AsyncWebServerRequest *request)
@@ -232,8 +233,9 @@ void setup()
             mqttPort = request->getParam("mqtt_port", true)->value().toInt();
             mqttUser = request->getParam("mqtt_user", true)->value();
             mqttPassword = request->getParam("mqtt_password", true)->value();
-            mqttClient.setServer(mqttHost.c_str(), mqttPort);
-            connectToMQTT();
+            mqttManager.setMQTTServer(mqttHost, mqttPort);
+            mqttManager.setCredentials(mqttUser, mqttPassword);
+            mqttConnected = mqttManager.connect();
             request->send(200, "text/plain", mqttConnected ? "connected" : "failed");
         } });
 
@@ -242,23 +244,7 @@ void setup()
 
 void loop()
 {
-    if (mqttClient.connected())
-    {
-        mqttClient.loop();
-    }
+    mqttManager.loop();
+    sensorManager.loop();
     esp_task_wdt_reset();
-}
-
-void connectToMQTT()
-{
-    if (mqttClient.connect("ESP32Client", mqttUser.c_str(), mqttPassword.c_str()))
-    {
-        mqttConnected = true;
-        Serial.println("MQTT Connected!");
-    }
-    else
-    {
-        mqttConnected = false;
-        Serial.println("MQTT Connection failed.");
-    }
 }
