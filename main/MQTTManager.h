@@ -2,6 +2,7 @@
 #define MQTTMANAGER_H
 
 #include <PubSubClient.h>
+#include <Preferences.h>
 
 class MQTTManager
 {
@@ -9,11 +10,13 @@ public:
     MQTTManager(PubSubClient &client);
     void setMQTTServer(const String &host, int port);
     void setCredentials(const String &user, const String &password);
-    bool connect();
+    bool connect(const String &mac);
     bool isConnected();
     void loop();
     String getHost();
     int getPort();
+    void saveSettings();
+    void loadSettings();
 
 private:
     PubSubClient &mqttClient;
@@ -22,6 +25,8 @@ private:
     String mqttUser;
     String mqttPassword;
     bool connected;
+
+   
 };
 
 #endif
