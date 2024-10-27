@@ -73,15 +73,24 @@ const char index_html[] PROGMEM = R"rawliteral(
 
         function checkConnectionStatus() {
             fetch('/status').then(response => response.json()).then(data => {
-                if (data.wifiConnected) {
-                    document.getElementById("wifi-section").classList.add("hidden");
-                    document.getElementById("mqtt-section").classList.remove("hidden");
-                    showConnectionInfo(data);
-                } else {
-                    document.getElementById("wifi-section").classList.remove("hidden");
-                    document.getElementById("mqtt-section").classList.add("hidden");
-                    fetchAvailableNetworks();
-                }
+               if (data.wifiConnected) {
+                document.getElementById("wifi-section").classList.add("hidden");
+                document.getElementById("mqtt-section").classList.remove("hidden");
+            } else {
+                document.getElementById("wifi-section").classList.remove("hidden");
+                document.getElementById("mqtt-section").classList.add("hidden");
+                fetchAvailableNetworks();
+            }
+
+            if (data.mqttConnected) {
+                document.getElementById("mqtt-section").classList.add("hidden");
+            } else {
+                document.getElementById("mqtt-section").classList.remove("hidden");
+            }
+
+            showConnectionInfo(data);
+
+
             });
         }
 
@@ -90,7 +99,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             const mqttInfo = document.getElementById("mqtt-info");
 
             if (data.wifiConnected) {
-                wifiInfo.innerHTML = `SSID: ${data.ssid}<br>IP: ${data.ip}<br>RSSI: ${data.rssi}`;
+                wifiInfo.innerHTML = `SSID: ${data.ssid}<br>IP: ${data.ip}<br>RSSI: ${data.rssi}<br>MAC: ${data.mac}`;
                 document.getElementById("connection-info").classList.remove("hidden");
             }
 
@@ -163,6 +172,7 @@ void setup()
     esp_task_wdt_delete(xTaskGetIdleTaskHandleForCPU(0));
     esp_task_wdt_delete(xTaskGetIdleTaskHandleForCPU(1));
     wifiManager.connectSavedWiFi();
+
     if (WiFi.status() != WL_CONNECTED)
     {
         Serial.println("Brak zapisanych danych WiFi lub nie udało się połączyć. Tworzenie hotspotu...");
@@ -176,6 +186,9 @@ void setup()
         Serial.print("MAC: ");
         Serial.println(WiFi.macAddress());
     }
+
+    mqttManager.loadSettings();
+    mqttManager.connect(WiFi.macAddress());
 
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -198,20 +211,23 @@ void setup()
 
     server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-        bool wifiConnected = (WiFi.status() == WL_CONNECTED);
-        bool mqttStatus = mqttManager.isConnected();
-        String ssid = wifiConnected ? WiFi.SSID() : "";
-        String ip = wifiConnected ? WiFi.localIP().toString() : "";
-        int rssi = wifiConnected ? WiFi.RSSI() : 0;
-        
-        String json = "{\"wifiConnected\":" + String(wifiConnected ? "true" : "false") +
-                      ",\"mqttConnected\":" + String(mqttStatus ? "true" : "false") +
-                      ",\"ssid\":\"" + ssid +
-                      "\",\"ip\":\"" + ip +
-                      "\",\"rssi\":" + String(rssi) +
-                      ",\"mqttHost\":\"" + mqttManager.getHost() +
-                      "\",\"mqttPort\":" + String(mqttManager.getPort()) + "}";
-        request->send(200, "application/json", json); });
+    bool wifiConnected = (WiFi.status() == WL_CONNECTED);
+    bool mqttStatus = mqttManager.isConnected();
+    String ssid = wifiConnected ? WiFi.SSID() : "";
+    String ip = wifiConnected ? WiFi.localIP().toString() : "";
+    int rssi = wifiConnected ? WiFi.RSSI() : 0;
+    String mac = wifiConnected ? WiFi.macAddress() : "";
+
+    String json = "{\"wifiConnected\":" + String(wifiConnected ? "true" : "false") +
+                  ",\"mqttConnected\":" + String(mqttStatus ? "true" : "false") +
+                  ",\"ssid\":\"" + ssid +
+                  "\",\"ip\":\"" + ip +
+                  "\",\"rssi\":" + String(rssi) +
+                  ",\"mac\":\"" + mac + "\"" + 
+                  ",\"mqttHost\":\"" + mqttManager.getHost() +
+                  "\",\"mqttPort\":" + String(mqttManager.getPort()) + "}";
+
+    request->send(200, "application/json", json); });
 
     server.on("/connect", HTTP_POST, [](AsyncWebServerRequest *request)
               {
@@ -235,7 +251,11 @@ void setup()
             mqttPassword = request->getParam("mqtt_password", true)->value();
             mqttManager.setMQTTServer(mqttHost, mqttPort);
             mqttManager.setCredentials(mqttUser, mqttPassword);
-            mqttConnected = mqttManager.connect();
+            mqttConnected = mqttManager.connect(WiFi.macAddress());
+            if (mqttConnected)
+            {
+                mqttManager.saveSettings();
+            }
             request->send(200, "text/plain", mqttConnected ? "connected" : "failed");
         } });
 
