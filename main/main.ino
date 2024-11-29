@@ -5,12 +5,14 @@
 #include "MQTTManager.h"
 #include "SensorManager.h"
 #include "esp_task_wdt.h"
+#include "Update.h"
 
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 MQTTManager mqttManager(mqttClient);
 SensorManager sensorManager(mqttClient);
 AsyncWebServer server(80);
+OTAUpdater otaUpdater(server);
 WiFiManager wifiManager;
 String selectedSSID = "";
 
@@ -189,7 +191,7 @@ void setup()
 
     mqttManager.loadSettings();
     mqttManager.connect(WiFi.macAddress());
-
+    otaUpdater.begin();
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
               {
         IPAddress clientIP = request->client()->remoteIP();
