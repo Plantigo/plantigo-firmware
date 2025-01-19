@@ -1,4 +1,4 @@
-data = b"ssid=Orange_Swiatlowod_E4C0_2.4GHz,password=5EvLo5Ux6rs9HGzjna"
+data = b"ssid=Orange_Swiatlowod_E4C0_2.4GHz,password="
 start_byte = b'\x02'
 end_byte = b'\x03'
 
