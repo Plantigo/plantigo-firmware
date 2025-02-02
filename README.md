@@ -1,83 +1,116 @@
-# ESP32 Menedżer WiFi & MQTT
+# Dokumentacja MQTT dla ESP32
 
-Projekt ten dostarcza prosty interfejs do zarządzania połączeniami WiFi oraz konfiguracją MQTT na ESP32. Użytkownicy mogą łączyć się z dostępnych sieci WiFi, ustawiać konfigurację MQTT oraz wysyłać symulowane dane z czujników do brokera MQTT.
+## 1. Opis systemu
+ESP32 łączy się z brokerem MQTT i komunikuje się za pomocą tematów (topics). Odbiera komendy na temat `command_topic` oraz publikuje dane z sensorów na `data_topic`.
 
-## Funkcje
+## 2. Struktura wiadomości
 
-- **Zarządzanie WiFi:** Skanuj i łącz się z dostępnymi sieciami WiFi za pomocą interfejsu webowego.
-- **Konfiguracja MQTT:** Ustawienia brokera MQTT (host, port, nazwa użytkownika i hasło).
-- **Symulowane dane z czujników:** Po połączeniu z brokerem MQTT ESP32 wysyła losowe dane z czujników do skonfigurowanego tematu MQTT.
-- **Interfejs Webowy:** Dostarcza przyjazny użytkownikowi interfejs do zarządzania ustawieniami WiFi i MQTT bezpośrednio z przeglądarki.
-- **Automatyczne przełączanie Hotspotu:** Jeśli nie znaleziono zapisanych sieci WiFi, ESP32 tworzy hotspot, aby użytkownik mógł skonfigurować ustawienia WiFi.
+### 2.1 Wiadomości wysyłane do ESP32 (`command_topic`)
 
-## Wymagania sprzętowe
+ESP32 nasłuchuje na temat `command_topic` i interpretuje otrzymane wiadomości w formacie JSON.
 
-- Płytka deweloperska ESP32
+#### Przykładowa struktura wiadomości:
+```json
+{
+  "code": <numer_kodu>,
+  "payload": {
+    <dodatkowe_dane>
+  }
+}
+```
 
-## Wymagane biblioteki
+### 2.2 Obsługiwane kody komend
 
-Upewnij się, że masz zainstalowane następujące biblioteki w Arduino IDE:
+| Kod | Opis | Przykładowa wiadomość |
+|------|------|----------------------|
+| `1`  | Zmiana danych MQTT (login/hasło) | ```json { "code": 1, "payload": { "mqtt_name": "nowy_user", "mqtt_password": "nowe_haslo" } } ``` |
+| `2`  | Restart ESP32 | ```json { "code": 2 } ``` |
+| `3`  | Zmiana danych WiFi | ```json { "code": 3, "payload": { "wifi_ssid": "NowaSiec", "wifi_password": "NoweHaslo" } } ``` |
+| `4`  | Usunięcie pliku `wifi_credentials.json` | ```json { "code": 4 } ``` |
+| `5`  | Usunięcie pliku `mqtt_credentials.json` | ```json { "code": 5 } ``` |
 
-1. **ESP Async Web Server**:
-    - [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer)
-2. **Async TCP**:
-    - [AsyncTCP](https://github.com/me-no-dev/AsyncTCP)
-3. **PubSubClient**:
-    - [PubSubClient](https://github.com/knolleary/pubsubclient)
-4. **ESP32 WiFi Library**:
-    - Wbudowana w środowisko ESP32
+---
 
-## Instrukcja instalacji
+## 3. Wiadomości publikowane przez ESP32 (`data_topic`)
 
-1. Skonfiguruj Arduino IDE do pracy z ESP32 zgodnie z instrukcjami z [oficjalnej dokumentacji](https://github.com/espressif/arduino-esp32).
-2. Pobierz i zainstaluj wymagane biblioteki, korzystając z powyższych linków.
-3. Sklonuj ten projekt lub skopiuj kod do nowego szkicu w Arduino IDE.
-4. Wgraj szkic na swoją płytkę ESP32.
+ESP32 co 5 sekund publikuje dane z sensorów na `data_topic`, który ma format:
+```
+<data_topic_prefix>/<mac_address>/<data_topic_suffix>
+```
 
-## Jak to działa?
+### Przykładowa struktura wiadomości:
 
-1. **Uruchomienie i Połączenie z WiFi**:
-   - Po uruchomieniu ESP32 próbuje połączyć się z zapisanymi danymi WiFi.
-   - Jeśli połączenie się nie powiedzie, ESP32 tworzy hotspot (np. `ESP32-AP`), aby umożliwić użytkownikowi połączenie i konfigurację WiFi.
-   - Po połączeniu z hotspotem, otwórz przeglądarkę i przejdź do `192.168.4.1`, aby uzyskać dostęp do interfejsu webowego.
+```json
+{
+  "temperature": 22.5,
+  "humidity": 55.0,
+  "pressure": 1013.25,
+  "light": 120
+}
+```
 
-2. **Interfejs Webowy**:
-   - **Sekcja WiFi**: Umożliwia wybór sieci WiFi, wpisanie hasła i połączenie.
-   - **Sekcja MQTT**: Po nawiązaniu połączenia z WiFi pojawia się sekcja ustawień MQTT. Wprowadź ustawienia brokera i zapisz.
-   - **Informacje o połączeniu**: Sekcja informacyjna wyświetla aktualny stan połączenia z WiFi i MQTT.
+Dane są pobierane z odpowiednich sensorów i automatycznie publikowane na brokerze MQTT.
 
-3. **Symulowane Dane z Czujników**:
-   - Po nawiązaniu połączenia z brokerem MQTT, ESP32 zaczyna wysyłać losowe dane z czujników w losowych odstępach czasu.
-   - Dane są wysyłane na temat MQTT w formacie `sensors/mac_address/data`.
+---
 
-## Struktura kodu
+## 4. Konfiguracja
 
-### `main.ino`
+Dane konfiguracyjne MQTT i WiFi są przechowywane w plikach:
+- `mqtt_credentials.json`
+- `wifi_credentials.json`
 
-Kod główny zarządza połączeniem WiFi, hotspotem i serwerem webowym, oraz inicjalizuje moduły MQTT i Sensor.
+Przykładowa zawartość `mqtt_credentials.json`:
+```json
+{
+  "broker": "mqtt.example.com",
+  "port": 1883,
+  "username": "esp32",
+  "password": "securepassword",
+  "command_topic": "command",
+  "data_topic_prefix": "sensors/",
+  "data_topic_suffix": "/data"
+}
+```
 
-### `WiFiManager.h` i `WiFiManager.cpp`
+Przykładowa zawartość `wifi_credentials.json`:
+```json
+{
+  "ssid": "MojaSiec",
+  "password": "BezpieczneHaslo"
+}
+```
 
-Odpowiada za zarządzanie połączeniami WiFi oraz tworzeniem hotspotu.
+---
 
-### `MQTTManager.h` i `MQTTManager.cpp`
+## 5. Jak zmienić ustawienia?
 
-Odpowiada za konfigurację i połączenie z brokerem MQTT.
+### 5.1 Zmiana danych WiFi
+1. Wysłać wiadomość MQTT z kodem `3`, podając nowy `ssid` i `password`.
+2. Urządzenie automatycznie zapisze nowe dane i wymaga restartu.
 
-### `SensorManager.h` i `SensorManager.cpp`
+### 5.2 Zmiana danych MQTT
+1. Wysłać wiadomość MQTT z kodem `1`, podając nowy `mqtt_name` i `mqtt_password`.
+2. Urządzenie zapisze zmiany i wymaga restartu.
 
-Generuje symulowane dane z czujników i wysyła je do brokera MQTT.
+### 5.3 Ręczne usunięcie plików
+Można wysłać komendy `4` lub `5`, aby usunąć odpowiednio `wifi_credentials.json` lub `mqtt_credentials.json`.
 
-## Przykładowe zastosowanie
+---
 
-1. Włącz ESP32.
-2. Połącz się z `ESP32-AP` i przejdź do `192.168.4.1`.
-3. Wybierz sieć WiFi, wpisz hasło i połącz.
-4. Po uzyskaniu połączenia z WiFi skonfiguruj ustawienia MQTT.
-5. Ciesz się automatycznym wysyłaniem danych z czujników przez MQTT!
+## 6. Restart ESP32
+Można zrestartować urządzenie poprzez:
+- Wysłanie wiadomości MQTT z kodem `2`.
+- Ręczne odłączenie i podłączenie zasilania.
 
-## Wskazówki
+---
 
-- **Reset połączenia WiFi**: Jeśli chcesz zresetować zapisane połączenia WiFi, wgraj ponownie kod na ESP32.
-- **Problemy z połączeniem**: Upewnij się, że ustawienia WiFi i MQTT są poprawne i broker MQTT działa poprawnie.
+## 7. Debugowanie
 
+Jeśli wystąpią problemy z połączeniem MQTT, ESP32 może wyświetlać komunikaty błędów w konsoli:
+- **"Błąd połączenia z MQTT"** – sprawdzić ustawienia brokera i dane logowania.
+- **"Brak danych do MQTT"** – plik `mqtt_credentials.json` nie istnieje lub jest niepoprawny.
+- **"Błąd publikowania MQTT"** – broker może być niedostępny lub ESP32 nie ma połączenia z siecią.
+
+W przypadku problemów zaleca się wysłać komendę `4` lub `5`, aby usunąć ustawienia i ponownie skonfigurować urządzenie.
+
+---
