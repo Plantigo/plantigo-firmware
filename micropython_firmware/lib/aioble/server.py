@@ -191,9 +191,7 @@ class BaseCharacteristic:
 
     def _remote_read(conn_handle, value_handle):
         if characteristic := _registered_characteristics.get(value_handle, None):
-            return characteristic.on_read(
-                DeviceConnection._connected.get(conn_handle, None)
-            )
+            return characteristic.on_read(DeviceConnection._connected.get(conn_handle, None))
 
 
 class Characteristic(BaseCharacteristic):

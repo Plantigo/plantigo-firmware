@@ -43,7 +43,7 @@ def _client_irq(event, data):
     if event == _IRQ_GATTC_SERVICE_RESULT:
         conn_handle, start_handle, end_handle, uuid = data
         ClientDiscover._discover_result(
-            conn_handle, start_handle, end_handle, bluetooth_service.UUID(uuid)
+            conn_handle, start_handle, end_handle, bluetooth.UUID(uuid)
         )
     elif event == _IRQ_GATTC_SERVICE_DONE:
         conn_handle, status = data
@@ -51,20 +51,14 @@ def _client_irq(event, data):
     elif event == _IRQ_GATTC_CHARACTERISTIC_RESULT:
         conn_handle, end_handle, value_handle, properties, uuid = data
         ClientDiscover._discover_result(
-            conn_handle,
-            end_handle,
-            value_handle,
-            properties,
-            bluetooth_service.UUID(uuid),
+            conn_handle, end_handle, value_handle, properties, bluetooth.UUID(uuid)
         )
     elif event == _IRQ_GATTC_CHARACTERISTIC_DONE:
         conn_handle, status = data
         ClientDiscover._discover_done(conn_handle, status)
     elif event == _IRQ_GATTC_DESCRIPTOR_RESULT:
         conn_handle, dsc_handle, uuid = data
-        ClientDiscover._discover_result(
-            conn_handle, dsc_handle, bluetooth_service.UUID(uuid)
-        )
+        ClientDiscover._discover_result(conn_handle, dsc_handle, bluetooth.UUID(uuid))
     elif event == _IRQ_GATTC_DESCRIPTOR_DONE:
         conn_handle, status = data
         ClientDiscover._discover_done(conn_handle, status)
@@ -82,9 +76,7 @@ def _client_irq(event, data):
         ClientCharacteristic._on_notify(conn_handle, value_handle, bytes(notify_data))
     elif event == _IRQ_GATTC_INDICATE:
         conn_handle, value_handle, indicate_data = data
-        ClientCharacteristic._on_indicate(
-            conn_handle, value_handle, bytes(indicate_data)
-        )
+        ClientCharacteristic._on_indicate(conn_handle, value_handle, bytes(indicate_data))
 
 
 register_irq_handler(_client_irq, None)
@@ -177,9 +169,7 @@ class ClientService:
         self.uuid = uuid
 
     def __str__(self):
-        return "Service: {} {} {}".format(
-            self._start_handle, self._end_handle, self.uuid
-        )
+        return "Service: {} {} {}".format(self._start_handle, self._end_handle, self.uuid)
 
     # Search for a specific characteristic by uuid.
     async def characteristic(self, uuid, timeout_ms=2000):
@@ -196,9 +186,7 @@ class ClientService:
     #     async for characteristic in service.characteristics():
     # Note: must allow the loop to run to completion.
     def characteristics(self, uuid=None, timeout_ms=2000):
-        return ClientDiscover(
-            self.connection, ClientCharacteristic, self, timeout_ms, uuid
-        )
+        return ClientDiscover(self.connection, ClientCharacteristic, self, timeout_ms, uuid)
 
     # For ClientDiscover
     def _start_discovery(connection, uuid=None):
@@ -297,9 +285,7 @@ class BaseClientCharacteristic:
             self._write_event = self._write_event or asyncio.ThreadSafeFlag()
 
         # Issue the write.
-        ble.gattc_write(
-            self._connection()._conn_handle, self._value_handle, data, response
-        )
+        ble.gattc_write(self._connection()._conn_handle, self._value_handle, data, response)
 
         if response:
             with self._connection().timeout(timeout_ms):
@@ -395,9 +381,7 @@ class ClientCharacteristic(BaseClientCharacteristic):
     # Will return immediately if a notification has already been received.
     async def notified(self, timeout_ms=None):
         self._check(_FLAG_NOTIFY)
-        return await self._notified_indicated(
-            self._notify_queue, self._notify_event, timeout_ms
-        )
+        return await self._notified_indicated(self._notify_queue, self._notify_event, timeout_ms)
 
     def _on_notify_indicate(self, queue, event, data):
         # If we've gone from empty to one item, then wake something
@@ -433,9 +417,7 @@ class ClientCharacteristic(BaseClientCharacteristic):
     def _on_indicate(conn_handle, value_handle, indicate_data):
         if characteristic := ClientCharacteristic._find(conn_handle, value_handle):
             characteristic._on_notify_indicate(
-                characteristic._indicate_queue,
-                characteristic._indicate_event,
-                indicate_data,
+                characteristic._indicate_queue, characteristic._indicate_event, indicate_data
             )
 
     # Write to the Client Characteristic Configuration to subscribe to
@@ -444,10 +426,8 @@ class ClientCharacteristic(BaseClientCharacteristic):
         # Ensure that the generated notifications are dispatched in case the app
         # hasn't awaited on notified/indicated yet.
         self._register_with_connection()
-        if cccd := await self.descriptor(bluetooth_service.UUID(_CCCD_UUID)):
-            await cccd.write(
-                struct.pack("<H", _CCCD_NOTIFY * notify + _CCCD_INDICATE * indicate)
-            )
+        if cccd := await self.descriptor(bluetooth.UUID(_CCCD_UUID)):
+            await cccd.write(struct.pack("<H", _CCCD_NOTIFY * notify + _CCCD_INDICATE * indicate))
         else:
             raise ValueError("CCCD not found")
 
@@ -462,9 +442,7 @@ class ClientDescriptor(BaseClientCharacteristic):
         super().__init__(dsc_handle, _FLAG_READ | _FLAG_WRITE, uuid)
 
     def __str__(self):
-        return "Descriptor: {} {} {}".format(
-            self._value_handle, self.properties, self.uuid
-        )
+        return "Descriptor: {} {} {}".format(self._value_handle, self.properties, self.uuid)
 
     def _connection(self):
         return self.characteristic.service.connection

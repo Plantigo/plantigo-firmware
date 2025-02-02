@@ -123,9 +123,7 @@ async def advertise(
             adv_data,
             resp_data,
             _ADV_TYPE_FLAGS,
-            struct.pack(
-                "B", (0x01 if limited_disc else 0x02) + (0x18 if br_edr else 0x04)
-            ),
+            struct.pack("B", (0x01 if limited_disc else 0x02) + (0x18 if br_edr else 0x04)),
         )
 
         # Services are prioritised to go in the advertising data because iOS supports
@@ -136,9 +134,7 @@ async def advertise(
                 (4, _ADV_TYPE_UUID32_COMPLETE),
                 (16, _ADV_TYPE_UUID128_COMPLETE),
             ):
-                if uuids := [
-                    bytes(uuid) for uuid in services if len(bytes(uuid)) == uuid_len
-                ]:
+                if uuids := [bytes(uuid) for uuid in services if len(bytes(uuid)) == uuid_len]:
                     resp_data = _append(adv_data, resp_data, code, b"".join(uuids))
 
         if name:
@@ -159,9 +155,7 @@ async def advertise(
             )
 
     _connect_event = _connect_event or asyncio.ThreadSafeFlag()
-    ble.gap_advertise(
-        interval_us, adv_data=adv_data, resp_data=resp_data, connectable=connectable
-    )
+    ble.gap_advertise(interval_us, adv_data=adv_data, resp_data=resp_data, connectable=connectable)
 
     try:
         # Allow optional timeout for a central to connect to us (or just to stop advertising).

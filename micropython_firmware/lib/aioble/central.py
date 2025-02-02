@@ -58,9 +58,7 @@ def _central_irq(event, data):
         addr_type, addr, adv_type, rssi, adv_data = data
         if not _active_scanner:
             return
-        _active_scanner._queue.append(
-            (addr_type, bytes(addr), adv_type, rssi, bytes(adv_data))
-        )
+        _active_scanner._queue.append((addr_type, bytes(addr), adv_type, rssi, bytes(adv_data)))
         _active_scanner._event.set()
     elif event == _IRQ_SCAN_DONE:
         if not _active_scanner:
@@ -250,9 +248,7 @@ class scan:
         ensure_active()
         await _cancel_pending()
         _active_scanner = self
-        ble.gap_scan(
-            self._duration_ms, self._interval_us, self._window_us, self._active
-        )
+        ble.gap_scan(self._duration_ms, self._interval_us, self._window_us, self._active)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_traceback):
