@@ -1,59 +1,69 @@
+import asyncio
+import json
+import logging
+from led import LEDController, led_controller
 import network
 import time
-import ujson
-import asyncio
-from led import led_controller, LEDController
+from utils import file_exists
+
+logger = logging.getLogger("WiFiService")
 
 
-async def connect_wifi(ssid, password):
-    wlan = network.WLAN(network.STA_IF)
-    wlan.active(True)
-    wlan.connect(ssid, password)
+class WiFiService:
+    """Handles WiFi connection and monitors credential file."""
 
-    # Czekaj na połączenie
-    timeout = 10  # Czas oczekiwania na połączenie
-    start_time = time.time()
-    while not wlan.isconnected() and time.time() - start_time < timeout:
-        await asyncio.sleep(1)
+    def __init__(self):
+        self.connected = False
 
-    if wlan.isconnected():
-        print("✅ Connected to Wi-Fi")
-        print("📡 IP address:", wlan.ifconfig()[0])
+    async def connect(self) -> bool:
+        """Attempts to connect to WiFi using stored credentials."""
+        if not file_exists("wifi_credentials.json"):
+            return False
 
-        asyncio.create_task(monitor_wifi(wlan, ssid, password))
-        return True
-    else:
-        print("❌ Failed to connect to Wi-Fi")
-        return False
+        with open("wifi_credentials.json", "r") as file:
+            credentials = json.load(file)
 
+        ssid, password = credentials.get("ssid"), credentials.get("password")
 
-async def monitor_wifi(wlan, ssid, password):
-    """ Monitoruje połączenie Wi-Fi i ponownie łączy w razie rozłączenia """
-    while True:
-        if not wlan.isconnected():
-            print("⚠️ Wi-Fi connection lost. Reconnecting...")
-            wlan.connect(ssid, password)
-            await asyncio.sleep(5)  # Odczekaj przed kolejną próbą
-        else:
+        if not ssid or not password:
+            logger.info("Niepoprawne dane logowania do WiFi")
+            return False
+
+        return await self._attempt_connect(ssid, password)
+
+    async def _attempt_connect(self, ssid: str, password: str) -> bool:
+        """
+        Handles the connection attempt to WiFi with provided credentials.
+
+        This method encapsulates the logic required to establish a WiFi connection.
+        """
+        logger.info(f"Łączenie z WiFi: {ssid}...")
+        self.wlan = network.WLAN(network.STA_IF)
+        self.wlan.active(True)
+        self.wlan.connect(ssid, password)
+
+        timeout = 10
+        start_time = time.time()
+        while not self.wlan.isconnected() and (time.time() - start_time < timeout):
+            await asyncio.sleep(1)
+
+        if self.wlan.isconnected():
+            self.connected = True
             led_controller.set_state(LEDController.State.ENABLED)
+            logger.info("Połączono z WiFi!")
+            logger.info("📡 IP address: %s", self.wlan.ifconfig()[0])
+            return True
+        else:
+            logger.info("❌ Failed to connect to WiFi")
+            return False
 
-        await asyncio.sleep(5)  # Sprawdzaj status co 5 sekund
-
-
-# Funkcja do zapisania danych SSID i hasła w pamięci flash
-def save_wifi_credentials(ssid, password):
-    credentials = {"ssid": ssid, "password": password}
-    with open('wifi_credentials.json', 'w') as f:
-        ujson.dump(credentials, f)
-        print("💾 Wi-Fi credentials saved.")
-
-
-# Funkcja do odczytania danych z pamięci flash
-def load_wifi_credentials():
-    try:
-        with open('wifi_credentials.json', 'r') as f:
-            credentials = ujson.load(f)
-            return credentials.get('ssid'), credentials.get('password')
-    except OSError:
-        print("⚠️ No Wi-Fi credentials found.")
-        return None, None
+    async def watch_for_credentials(self):
+        """Checks every 5s if credentials file is created."""
+        while not self.connected:
+            if file_exists("wifi_credentials.json"):
+                logger.info(
+                    "Plik wifi_credentials.json wykryty, próbuję połączyć się..."
+                )
+                if await self.connect():
+                    return
+            await asyncio.sleep(5)
