@@ -1,50 +1,60 @@
-import bluetooth_service
-from wifi_service import load_wifi_credentials, connect_wifi
 import asyncio
-from led import led_controller, LEDController
+from utils import file_exists
+from wifi_service import WiFiService
+from bluetooth_service import BluetoothService
 from mqtt_service import MQTTService
+import logging
+from led import led_controller
 
-def log(message):
-    print(f"[LOG] {message}")
 
-async def boot():
-    log("Booting...")
-    
-    bluetooth_task_started = False
+logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
+logger = logging.getLogger(__name__)
+
+
+async def main():
+    """
+    Main boot function to initialize services and monitor WiFi credentials.
+    """
+    wifi_service = WiFiService()
+    bluetooth_service = BluetoothService(wifi_service)
     mqtt_service = MQTTService()
-    
-    asyncio.create_task(led_controller.start())
 
-    while True:
-        ssid, password = load_wifi_credentials()
-        log(f"SSID: {ssid}, Password: {password}")
-        
-        if ssid and password:
-            wifi_connected = await connect_wifi(ssid, password)
-            
-            if wifi_connected:
-                log("Połączono z Wi-Fi, próbuję połączyć się z MQTT...")
+    tasks = []
+    tasks.append(asyncio.create_task(led_controller.start()))
 
-                while True:
-                    if mqtt_service.connect():
-                        log("✅ Połączono z MQTT!")
-                        mqtt_service.subscribe()
-                        asyncio.create_task(mqtt_service.listen())
-                        asyncio.create_task(mqtt_service.publish_data())
-                        break
-                    else:
-                        log("❌ Błąd połączenia z MQTT. Ponowna próba za 5s...")
-                        await asyncio.sleep(5)
-                
-                while True:
-                    await asyncio.sleep(5) 
-            else:
-                log("❌ Nie udało się połączyć z Wi-Fi. Ponowna próba za 5s...")
+    if file_exists("wifi_credentials.json"):
+        logger.info(
+            "Plik wifi_credentials.json istnieje, próbuję połączyć się z WiFi..."
+        )
+        connected = await wifi_service.connect()
+        if connected:
+            logger.info("Połączono z WiFi, uruchamiam MQTT Service...")
+            tasks.append(asyncio.create_task(mqtt_service.start()))
         else:
-            if not bluetooth_task_started:
-                asyncio.create_task(bluetooth_service.start())
-                bluetooth_task_started = True
-            log("Brak zapisanych danych WiFi, sprawdzanie ponownie za 5 sekund...")
-        await asyncio.sleep(5)  
+            logger.info(
+                "Nie udało się połączyć z WiFi, uruchamiam Bluetooth Service oraz watch_for_credentials..."
+            )
+            tasks.append(asyncio.create_task(bluetooth_service.start()))
+            tasks.append(asyncio.create_task(wifi_service.watch_for_credentials()))
+    else:
+        logger.info(
+            "Brak pliku wifi_credentials.json, uruchamiam Bluetooth Service oraz watch_for_credentials..."
+        )
+        tasks.append(asyncio.create_task(bluetooth_service.start()))
+        tasks.append(asyncio.create_task(wifi_service.watch_for_credentials()))
 
-asyncio.run(boot())
+    mqtt_started = False
+    while not mqtt_started:
+        if file_exists("wifi_credentials.json") and wifi_service.connected:
+            logger.info(
+                "Wykryto plik wifi_credentials.json oraz połączenie WiFi, uruchamiam MQTT Service..."
+            )
+            tasks.append(asyncio.create_task(mqtt_service.start()))
+            mqtt_started = True
+        await asyncio.sleep(1)
+
+    await asyncio.gather(*tasks)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
