@@ -49,6 +49,7 @@ class WiFiService:
 
         if self.wlan.isconnected():
             self.connected = True
+            logger.info("LED enabled")
             led_controller.set_state(LEDController.State.ENABLED)
             logger.info("Połączono z WiFi!")
             logger.info("📡 IP address: %s", self.wlan.ifconfig()[0])

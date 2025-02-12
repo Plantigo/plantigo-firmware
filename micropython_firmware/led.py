@@ -31,7 +31,6 @@ class LEDController:
             logger.info("LED disabled.")
             self.led.value(0)
         elif state == self.State.ENABLED:
-            logger.info("LED enabled.")
             self.led.value(1)
         else:
             logger.info("LED flashing.")
