@@ -115,7 +115,7 @@ class BluetoothService:
                                 json.dump(credentials_dict, f)
                             logger.info("Zapisano dane WiFi: %s", credentials_dict)
                             stored_connection = connection
-                            max_retries = 10
+                            max_retries = 25
                             for _ in range(max_retries):
                                 if self.wifi_service.connected:
                                     try:
