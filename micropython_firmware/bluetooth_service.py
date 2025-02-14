@@ -114,15 +114,29 @@ class BluetoothService:
                             with open('wifi_credentials.json', 'w') as f:
                                 json.dump(credentials_dict, f)
                             logger.info("Zapisano dane WiFi: %s", credentials_dict)
-                            if self.wifi_service.connected:
-                                self._wifi_credentials_characteristic.notify(
-                                    connection, b'OK'
-                                )
-                                await asyncio.sleep(2)
-                                logger.info("Wyłączanie Bluetooth Service")
-                                await aioble.stop()
-                                self.running = False
-                                return
+                            stored_connection = connection
+                            max_retries = 10
+                            for _ in range(max_retries):
+                                if self.wifi_service.connected:
+                                    try:
+                                        if stored_connection:
+                                            notification_data = b'OK'
+                                            logger.info("Sending notification data: %s (hex: %s)", 
+                                                      notification_data, 
+                                                      notification_data.hex())
+                                            self._wifi_credentials_characteristic.notify(
+                                                stored_connection, notification_data
+                                            )
+                                            await asyncio.sleep(2)
+                                    except Exception as e:
+                                        logger.error("Błąd podczas wysyłania powiadomienia BLE: %s", e)
+                                    finally:
+                                        logger.info("Wyłączanie Bluetooth Service")
+                                        self.running = False
+                                        await aioble.stop()
+                                        return
+                                await asyncio.sleep(1)
+                            logger.info("Nie udało się potwierdzić połączenia WiFi")
                         else:
                             logger.error("Nieprawidłowy format danych WiFi")
                     except ValueError:
