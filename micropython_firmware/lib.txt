@@ -1,2 +1,3 @@
 aioble-0.6.0
 logging-0.6.1
+microdot

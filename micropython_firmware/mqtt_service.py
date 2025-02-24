@@ -1,6 +1,7 @@
 import json
 import asyncio
 import network
+from sensor_reader import read_all_sensors
 import ubinascii
 import random
 import os
@@ -10,7 +11,10 @@ from temperature_sensor import get_temperature
 from humidity_sensor import get_humidity
 from pressure_sensor import get_pressure
 from light_sensor import get_light
+from data_logger import data_logger
+from config_manager import config
 import logging
+import time
 
 logger = logging.getLogger("MQTTService")
 
@@ -150,24 +154,24 @@ class MQTTService:
             logger.info(f"Błąd parsowania wiadomości MQTT: {e}")
 
     async def publish_data(self):
-        """Publikuje losowe liczby w formacie JSON dla sensorów na '<prefix>/<mac_address>/<sufix>', co 5 sekund."""
+        """Publikuje dane z sensorów na '<prefix>/<mac_address>/<sufix>', co określony interwał."""
         while True:
             if self.client and self.data_topic:
-                sensor_data = {
-                    "temperature": get_temperature(),
-                    "humidity": get_humidity(),
-                    "pressure": get_pressure(),
-                    "light": get_light(),
-                }
+                sensor_data = read_all_sensors()
+
                 payload = json.dumps(sensor_data)
 
                 try:
                     self.client.publish(self.data_topic, payload)
+                    # Zapisz dane do pliku
+                    data_logger.save_data(sensor_data)
                     logger.info(f"Wysłano na {self.data_topic}: {payload}")
                 except Exception as e:
                     logger.info(f"Błąd publikowania MQTT: {e}")
 
-            await asyncio.sleep(5)
+            # Pobierz interwał z konfiguracji
+            publish_interval = config.get('sampling', 'mqtt_publish_interval')
+            await asyncio.sleep(publish_interval)
 
     async def listen(self):
         """Nasłuchuje wiadomości w pętli."""
@@ -189,3 +193,4 @@ class MQTTService:
             else:
                 logger.info("Błąd połączenia z MQTT. Ponowna próba za 5s...")
                 await asyncio.sleep(5)
+
