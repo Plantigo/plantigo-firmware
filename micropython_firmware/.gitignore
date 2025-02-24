@@ -1,5 +1,0 @@
-*.json
-lib
-.idea
-.mypy_cache
-.venv
