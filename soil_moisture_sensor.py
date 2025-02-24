@@ -78,13 +78,13 @@ class SoilMoistureSensor:
                         self.calibration["dry"] - self.calibration["wet"])
             moisture = max(0, min(100, moisture))
 
-            print(f"Wilgotność gleby: {moisture}% (ADC: {raw_value})")
+            # print(f"Wilgotność gleby: {moisture}% (ADC: {raw_value})")
             return {
                 "soil_moisture": moisture,
                 "raw_value": raw_value
             }
         except Exception as e:
-            print(f"Błąd odczytu wilgotności gleby: {e}")
+            # print(f"Błąd odczytu wilgotności gleby: {e}")
             return {
                 "soil_moisture": None,
                 "raw_value": None

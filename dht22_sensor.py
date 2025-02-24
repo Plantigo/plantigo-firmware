@@ -13,7 +13,7 @@ class DHT22Sensor:
             self.sensor.measure()
             temperature = self.sensor.temperature()
             humidity = self.sensor.humidity()
-            print(f"DHT22 - Temperatura: {temperature:.1f}°C, Wilgotność: {humidity:.1f}%")
+            # print(f"DHT22 - Temperatura: {temperature:.1f}°C, Wilgotność: {humidity:.1f}%")
             return {
                 "temperature": temperature,
                 "humidity": humidity

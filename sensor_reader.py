@@ -26,5 +26,5 @@ def read_all_sensors():
         "pressure": light,
         "timestamp": time.time()
     }
-    print(sensor_data)
+    # print(sensor_data)
     return sensor_data

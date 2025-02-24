@@ -30,7 +30,7 @@ class SHT41Sensor:
             temperature = round(temperature, 1)
             humidity = round(humidity, 1)
 
-            print(f"SHT41 - Temperatura: {temperature:.1f}°C, Wilgotność: {humidity:.1f}%")
+            # print(f"SHT41 - Temperatura: {temperature:.1f}°C, Wilgotność: {humidity:.1f}%")
             return {
                 "temperature": temperature,
                 "humidity": humidity
