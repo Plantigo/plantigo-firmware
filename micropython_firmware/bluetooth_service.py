@@ -4,6 +4,8 @@ import os
 import logging
 import aioble
 import bluetooth
+import network
+import ubinascii
 from led import led_controller, LEDController
 
 
@@ -37,6 +39,12 @@ class BluetoothService:
             capture=True,
         )
         aioble.register_services(self._ble_service)
+
+    def get_mac_address(self):
+        """Gets the device MAC address."""
+        wlan = network.WLAN(network.STA_IF)
+        mac = ubinascii.hexlify(wlan.config('mac'), ':').decode()
+        return mac
 
     async def start(self):
         """
@@ -120,7 +128,8 @@ class BluetoothService:
                                 if self.wifi_service.connected:
                                     try:
                                         if stored_connection:
-                                            notification_data = b'OK'
+                                            mac_address = self.get_mac_address()
+                                            notification_data = f"OK|{mac_address}".encode()
                                             logger.info("Sending notification data: %s (hex: %s)", 
                                                       notification_data, 
                                                       notification_data.hex())
