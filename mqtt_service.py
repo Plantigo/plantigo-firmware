@@ -85,7 +85,7 @@ class MQTTService:
             return False
 
         self.client = MQTTClient(
-            client_id="ESP32_Client",
+            client_id="ESP32_Client_" + self.get_mac_address(),
             server=self.credentials["broker"],
             port=self.credentials["port"],
             user=self.credentials["username"],
@@ -160,7 +160,7 @@ class MQTTService:
                 sensor_data = read_all_sensors()
 
                 payload = json.dumps(sensor_data)
-
+                print(self.data_topic, payload)
                 try:
                     self.client.publish(self.data_topic, payload)
                     # Zapisz dane do pliku
